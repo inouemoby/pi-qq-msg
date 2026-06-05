@@ -6,9 +6,24 @@ const SKILL_DIR = __dirname;
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
+// 向上遍历目录，找到包含 settings.json 的 pi agent 根目录
+function findAgentHome(): string {
+  let dir = SKILL_DIR;
+  for (let i = 0; i < 10; i++) {
+    if (existsSync(join(dir, "settings.json"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // fallback: SKILL_DIR 上级
+  return dirname(SKILL_DIR);
+}
+
 function loadUserConfig(): { group_whitelist: number[]; ob11_url?: string; ob11_token?: string } {
-  // 配置文件在 pi agent 根目录，与插件代码分离
-  const configPath = join(dirname(SKILL_DIR), "..", "qq-msg-data.json");
+  // 配置文件在 pi agent 根目录 (~/.pi/agent/)，与插件代码分离
+  // 按优先级查找: 1) 环境变量 PI_AGENT_HOME 2) 向上遍历找到 settings.json 所在目录 3) SKILL_DIR 上级
+  const home = process.env.PI_AGENT_HOME || findAgentHome();
+  const configPath = join(home, "qq-msg-data.json");
   if (existsSync(configPath)) {
     try {
       return JSON.parse(readFileSync(configPath, "utf-8"));
