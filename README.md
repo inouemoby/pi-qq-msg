@@ -149,17 +149,19 @@ pi install git:github.com/inouemoby/pi-qq-msg
 git clone https://github.com/inouemoby/pi-qq-msg ~/.pi/agent/extensions/qq-msg
 ```
 
-### 第六步：创建用户配置文件
+### 第六步：配置 pi
 
-插件代码**不包含任何个人信息**。你需要单独创建一个用户数据文件：
+在 pi 的 `settings.json` 中添加 `"qq-msg"` 字段：
 
-路径：`~/.pi/agent/qq-msg-data.json`（与插件代码分离）
+路径：`~/.pi/agent/settings.json`
 
-```json
+```jsonc
 {
-  "ob11_token": "你在第二步设置的token",
-  "group_whitelist": [],
-  "group_whitelist_note": {}
+  // ... 其他 pi 配置 ...
+  "qq-msg": {
+    "ob11_token": "你在第二步设置的token",
+    "group_whitelist": []
+  }
 }
 ```
 
@@ -170,9 +172,8 @@ git clone https://github.com/inouemoby/pi-qq-msg ~/.pi/agent/extensions/qq-msg
 | `ob11_token` | string | LLBot HTTP API 的 Token |
 | `ob11_url` | string? | 覆盖 API 地址（默认 `http://127.0.0.1:3000`） |
 | `group_whitelist` | number[] | 群聊白名单（QQ群号列表），为空则显示所有群 |
-| `group_whitelist_note` | object? | 备注说明，不影响功能 |
 
-也可以通过环境变量配置（优先级高于配置文件）：
+也可以通过环境变量配置（优先级高于 settings.json）：
 
 ```bash
 export QQ_OB11_URL="http://127.0.0.1:3000"
@@ -188,14 +189,11 @@ export QQ_OB11_TOKEN="your_token"
 
 示例——只关注 3 个群：
 
-```json
+```jsonc
 {
-  "ob11_token": "my_secret_token",
-  "group_whitelist": [591551114, 572865743, 807636814],
-  "group_whitelist_note": {
-    "591551114": "工作群",
-    "572865743": "日常群",
-    "807636814": "学习群"
+  "qq-msg": {
+    "ob11_token": "my_secret_token",
+    "group_whitelist": [591551114, 572865743, 807636814]
   }
 }
 ```
@@ -326,17 +324,16 @@ pi-qq-msg/
 ├── SKILL.md          # pi skill 描述（AI 行为指引）
 ├── LICENSE           # MIT
 └── README.md         # 本文档
-
-~/.pi/agent/
-└── qq-msg-data.json  # 用户配置（独立存放，不含在插件中）
 ```
+
+用户配置写在 `~/.pi/agent/settings.json` 的 `"qq-msg"` 字段中，不额外创建文件。
 
 ## 安全注意事项
 
-- **Token 不要硬编码在代码中** — 使用 `qq-msg-data.json` 或环境变量 `QQ_OB11_TOKEN`
+- **Token 不要硬编码在代码中** — 使用 `settings.json` 的 `qq-msg.ob11_token` 或环境变量 `QQ_OB11_TOKEN`
 - **只监听 localhost** — LLBot 配置 `host: "127.0.0.1"`，不要暴露到公网
 - **发送消息需确认** — 插件设计为 AI 会先确认再发送，避免误发
-- **用户数据与插件分离** — `qq-msg-data.json` 不在插件目录中，不会被 git 追踪
+- **配置集中在 settings.json** — 插件从 `settings.json` 的 `"qq-msg"` 字段读取配置，无额外文件
 
 ## 已知限制
 
