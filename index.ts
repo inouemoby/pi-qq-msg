@@ -18,7 +18,6 @@ function loadUserConfig(): { group_whitelist: number[]; ob11_url?: string; ob11_
     return settings["qq-msg"] || {};
   } catch { return {}; }
 }
-}
 
 const USER_CONFIG = loadUserConfig();
 const GROUP_WHITELIST: Set<number> = new Set(USER_CONFIG.group_whitelist || []);
