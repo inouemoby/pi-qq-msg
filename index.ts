@@ -142,7 +142,7 @@ export default function (pi: ExtensionAPI) {
       const isSendAction = action.startsWith("send_") || action.startsWith("set_") || action.startsWith("delete_");
       const usePost = method === "POST" || isSendAction;
 
-      onUpdate?.({ content: [{ type: "text", text: `🔄 ${method} /${action} ${usePost ? JSON.stringify(ob11Params) : Object.entries(ob11Params).map(([k,v])=>`${k}=${v}`).join("&")}` }] });
+      onUpdate?.({ content: [{ type: "text", text: `qq_msg ${action}` }] });
 
       try {
         let result: any;
