@@ -1,0 +1,13 @@
+{
+  "name": "pi-qq-msg",
+  "version": "1.0.0",
+  "description": "QQ personal messaging via LLOneBot OneBot 11 HTTP API",
+  "author": "inouemoby",
+  "pi": {
+    "extensions": ["./index.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  }
+}
