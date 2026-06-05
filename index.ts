@@ -74,7 +74,11 @@ function formatMsg(m: any): string {
     for (const seg of m.message) {
       if (seg.type === "text") text += seg.data?.text || "";
       else if (seg.type === "face") text += `[表情${seg.data?.id}]`;
-      else if (seg.type === "image") text += `[图片]`;
+      else if (seg.type === "image") {
+        const imgFile = seg.data?.file || "?";
+        const imgUrl = seg.data?.url || "";
+        text += `[图片:${imgFile}${imgUrl ? " " + imgUrl : ""}]`;
+      }
       else if (seg.type === "at") text += `@${seg.data?.qq}`;
       else if (seg.type === "reply") text += `[回复]`;
       else if (seg.type === "record") text += `[语音]`;
