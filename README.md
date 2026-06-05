@@ -24,23 +24,43 @@
 - [Node.js](https://nodejs.org/) >= 18（pi 依赖）
 - [pi](https://www.npmjs.com/package/@earendil-works/pi-coding-agent) 已安装
 
-### 第一步：安装 LLBot Desktop
+### 第一步：安装原版 QQNT
 
-LLBot 是一个 QQ 机器人框架，它通过 PMHQ（纯内存 Hook）注入原版 NTQQ，将 QQ 的内部功能暴露为标准协议 API。
+LLBot 不是 QQ 客户端，也不是代理。它是一个**框架**——通过 PMHQ（纯内存 Hook）注入你电脑上已安装的原版 QQNT，将 QQ 的内部功能包装成标准 API。
+
+所以你首先需要安装原版 QQNT：
+
+1. 前往 [QQ 官网](https://im.qq.com/pcqq/index.shtml) 下载并安装 **QQNT**（桌面版 QQ）
+2. 确认可以正常启动和登录
+3. **不要安装任何第三方 QQ 插件**（如 LiteLoaderQQNT），否则可能冲突
+
+### 第二步：安装 LLBot Desktop
 
 1. 前往 [LuckyLilliaBot Releases](https://github.com/LLOneBot/LuckyLilliaBot/releases/latest) 下载 `LLBot-Desktop-win-x64.zip`
 
 2. 解压到固定目录，例如 `D:\LLBot-Desktop\`
 
-3. 双击 `llbot.exe` 启动
+3. 双击 `llbot.exe` 打开管理界面
 
-   > ⚠️ LLBot 会自动拉起 QQ.exe 进行注入。**必须由 LLBot 拉起 QQ**，手动打开的 QQ 不生效。如果你已经手动开了 QQ，先退出它。
+### 第三步：启动并登录 QQ
 
-4. 在 LLBot 界面中扫码登录你的 QQ 账号
+1. 在 LLBot Desktop 管理界面中点击「启动」
 
-5. 登录成功后，LLBot 界面应显示「已登录」状态
+2. LLBot 会启动 PMHQ，PMHQ 会拉起原版 QQNT（通过 `pmhq_config.json` 中配置的 QQ 路径）。**QQ 会弹出它自己的窗口**——LLBot 不是 QQ，登录发生在 QQ 窗口中。
 
-### 第二步：配置 LLBot
+3. 如果是首次登录，在弹出的 QQ 窗口中用手机 QQ 扫码登录。二维码也会同时显示在 LLBot 的 WebUI（`http://localhost:3080`）和终端日志中。
+
+4. 如果之前登录过，可在 `pmhq_config.json` 中配置快速登录：
+   ```json
+   { "quick_login_qq": "你的QQ号" }
+   ```
+   这样每次启动会自动登录，无需再次扫码。
+
+5. 登录成功后，LLBot 会自动检测到并加载 OneBot 11 等协议服务。此时管理界面应显示在线状态。
+
+> ⚠️ QQ 必须由 PMHQ 拉起（即通过 LLBot 启动）。手动打开的 QQ 没有被注入，LLBot 无法使用。
+
+### 第四步：配置 OneBot 11 HTTP API
 
 LLBot 支持多种协议（OneBot 11、Milky、Satori），我们只需要 OneBot 11 的 HTTP 接口。
 
@@ -97,7 +117,7 @@ PMHQ 配置文件路径：`<LLBot目录>\bin\pmhq\pmhq_config.json`
 - `headless`：设为 `true` 可开启无头模式（不显示 QQ 窗口，但有掉线风险）
 - `qq_console`：设为 `true` 可显示 QQ 控制台（调试用）
 
-### 第三步：验证 LLBot 工作正常
+### 第五步：验证 LLBot 工作正常
 
 在浏览器或终端中测试：
 
@@ -115,7 +135,7 @@ curl http://127.0.0.1:3000/get_login_info \
 
 如果看到这个响应，说明 LLBot 和 OneBot 11 HTTP API 已经正常工作。
 
-### 第四步：设置开机自启（可选）
+### 第六步：设置开机自启（可选）
 
 创建 LLBot 的快捷方式，放到 Windows 启动目录：
 
@@ -133,7 +153,7 @@ curl http://127.0.0.1:3000/get_login_info \
 }
 ```
 
-### 第五步：安装 pi-qq-msg 插件
+### 第七步：安装 pi-qq-msg 插件
 
 #### 方式 A：通过 pi install（推荐）
 
@@ -149,7 +169,7 @@ pi install git:github.com/inouemoby/pi-qq-msg
 git clone https://github.com/inouemoby/pi-qq-msg ~/.pi/agent/extensions/qq-msg
 ```
 
-### 第六步：配置 pi
+### 第八步：配置 pi
 
 在 pi 的 `settings.json` 中添加 `"qq-msg"` 字段：
 
@@ -198,7 +218,7 @@ export QQ_OB11_TOKEN="your_token"
 }
 ```
 
-### 第七步：重启 pi 并使用
+### 第九步：重启 pi 并使用
 
 ```bash
 pi
@@ -240,12 +260,19 @@ pi：[确认后调用 qq_msg 发送消息]
                    │ 注入 + Hook
 ┌──────────────────▼──────────────────────────────┐
 │          QQNT (原版桌面 QQ 客户端)                │
-│  由 PMHQ 拉起，支持普通模式和无头模式              │
+│  由 PMHQ 拉起并注入，用户在 QQ 窗口中扫码登录    │
 └─────────────────────────────────────────────────┘
 ```
 
+启动流程：
+1. `llbot.exe`（管理界面）→ 用户点击「启动」
+2. LLBot 启动 PMHQ 进程 → PMHQ 拉起原版 QQ.exe 并注入 Hook
+3. QQ 弹出自己的窗口 → 用户扫码登录
+4. PMHQ 检测到登录成功 → 通知 LLBot
+5. LLBot 加载 OneBot 11 等协议插件 → API 就绪
+
 三层分工：
-- **QQNT**：官方客户端，维持真实 QQ 连接
+- **QQNT**：官方客户端，维持真实 QQ 连接，负责登录和消息收发
 - **PMHQ**：注入 QQNT 进程，Hook 内部 JS 函数，通过 WebSocket 暴露给 LLBot
 - **LLBot**：将 PMHQ 的底层调用封装为标准 OneBot 11 协议，提供 HTTP/WS API
 
