@@ -6,24 +6,18 @@ const SKILL_DIR = __dirname;
 
 // ─── 从 settings.json 的 "qq-msg" 字段读取用户配置 ───
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join } from "node:path";
+
+const HOME = process.env.USERPROFILE || process.env.HOME || "";
+const PI_AGENT = join(HOME, ".pi", "agent");
 
 function loadUserConfig(): { group_whitelist: number[]; ob11_url?: string; ob11_token?: string } {
-  // 向上遍历找到 settings.json 所在目录
-  let dir = SKILL_DIR;
-  for (let i = 0; i < 10; i++) {
-    const candidate = join(dir, "settings.json");
-    if (existsSync(candidate)) {
-      try {
-        const settings = JSON.parse(readFileSync(candidate, "utf-8"));
-        return settings["qq-msg"] || {};
-      } catch { /* ignore */ }
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return {};
+  const settingsPath = join(PI_AGENT, "settings.json");
+  try {
+    const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+    return settings["qq-msg"] || {};
+  } catch { return {}; }
+}
 }
 
 const USER_CONFIG = loadUserConfig();
