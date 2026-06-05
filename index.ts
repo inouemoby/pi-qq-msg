@@ -5,7 +5,7 @@ const OB11_BASE = process.env.QQ_OB11_URL || "http://127.0.0.1:3000";
 const SKILL_DIR = __dirname;
 
 // ─── 从 settings.json 的 "qq-msg" 字段读取用户配置 ───
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 function loadUserConfig(): { group_whitelist: number[]; ob11_url?: string; ob11_token?: string } {
@@ -74,11 +74,7 @@ function formatMsg(m: any): string {
     for (const seg of m.message) {
       if (seg.type === "text") text += seg.data?.text || "";
       else if (seg.type === "face") text += `[表情${seg.data?.id}]`;
-      else if (seg.type === "image") {
-        const imgFile = seg.data?.file || "?";
-        const imgUrl = seg.data?.url || "";
-        text += `[图片:${imgFile}${imgUrl ? " " + imgUrl : ""}]`;
-      }
+      else if (seg.type === "image") text += `[图片:${seg.data?.file || "?"}]`;
       else if (seg.type === "at") text += `@${seg.data?.qq}`;
       else if (seg.type === "reply") text += `[回复]`;
       else if (seg.type === "record") text += `[语音]`;
@@ -121,7 +117,8 @@ export default function (pi: ExtensionAPI) {
           "send_private_msg, send_group_msg, send_msg, delete_msg, " +
           "set_group_kick, set_group_ban, set_group_whole_ban, " +
           "set_group_admin, set_group_card, set_group_name, " +
-          "get_group_info, get_version_info, get_status",
+          "get_group_info, get_version_info, get_status, " +
+          "get_image (下载图片到本地，传入 file 参数为图片 hash，返回本地路径)",
       }),
       params: Type.Optional(Type.Record(Type.String(), Type.Any(), {
         description:
@@ -204,6 +201,29 @@ export default function (pi: ExtensionAPI) {
           text = "✅ 消息已撤回";
         } else if (action.startsWith("set_group_")) {
           text = `✅ 操作成功`;
+        } else if (action === "get_image") {
+          // Download image to temp file for viewing with image_read
+          const imgUrl = data?.url;
+          if (!imgUrl) {
+            text = `图片信息: ${JSON.stringify(data)}`;
+          } else {
+            try {
+              const imgResp = await fetch(imgUrl, { signal: AbortSignal.timeout(30_000) });
+              if (!imgResp.ok) {
+                text = `❌ 图片下载失败: ${imgResp.status} ${imgResp.statusText}`;
+              } else {
+                const tmpDir = join(process.env.TEMP || "/tmp", "pi-qq-msg");
+                mkdirSync(tmpDir, { recursive: true });
+                const fileName = String(ob11Params.file || "").split("/").pop() || `img_${Date.now()}.png`;
+                const tmpPath = join(tmpDir, fileName);
+                const buf = Buffer.from(await imgResp.arrayBuffer());
+                writeFileSync(tmpPath, buf);
+                text = `图片已下载: ${tmpPath} (${(buf.length / 1024).toFixed(1)}KB)\n可用 image_read 工具查看`;
+              }
+            } catch (dlErr: any) {
+              text = `图片信息: ${JSON.stringify(data)}\n下载失败: ${dlErr.message}`;
+            }
+          }
         } else {
           text = typeof data === "object" ? JSON.stringify(data, null, 2) : String(data);
         }
