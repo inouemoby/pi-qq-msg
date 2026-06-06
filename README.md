@@ -151,11 +151,8 @@ Search friends/groups and view chat history.
 
 | Command | Description |
 |---------|-------------|
-| `/qq-recent` | Show recent conversations |
-| `/qq-msg <keyword>` | Search friend/group and show recent messages |
-| `/qq-friends` | Friend list |
-| `/qq-groups` | Group list (filtered by whitelist) |
-| `/qq-send <target> <content>` | Send message |
+| `/qq-dm` | Recent friend DMs, sorted by time |
+| `/qq-group` | Recent messages from whitelist groups |
 
 ## Known limitations
 
