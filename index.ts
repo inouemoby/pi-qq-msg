@@ -80,6 +80,17 @@ function formatMsg(m: any): string {
   return `${time} ${sender}: ${text}`;
 }
 
+function formatTime(ts: number): string {
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return "刚刚";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`;
+  if (diff < 172800000) return "昨天 " + d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+}
+
 // ─── Extension entry ─────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
@@ -486,158 +497,89 @@ export default function (pi: ExtensionAPI) {
 
   // ── Commands ───────────────────────────────────────────────
 
-  pi.registerCommand("qq-recent", {
-    description: "查看最近的QQ会话 (按时间排序)",
+
+  // ── Commands ──────────────────────────────────────────────
+
+  pi.registerCommand("qq-dm", {
+    description: "查看QQ好友近期私聊消息",
     handler: async (_args: string, ctx: any) => {
       try {
-        const conversations: Array<{ name: string; id: number; type: string; lastMsg: string; time: number; timeStr: string }> = [];
-        const [friendResult, groupResult] = await Promise.all([
-          ob11Get("get_friend_list"),
-          ob11Get("get_group_list"),
-        ]);
+        const friendResult = await ob11Get("get_friend_list");
         const friends = friendResult.data || [];
-        const groups = groupResult.data || [];
-        // Sample: check top friends and groups for recent messages
-        const BATCH = 15;
-        const fBatch = friends.slice(0, BATCH);
-        const gBatch = groups.slice(0, BATCH);
-        const results = await Promise.all([
-          ...fBatch.map((f: any) => ob11Post("get_friend_msg_history", { user_id: f.user_id, count: 1 }).then(r => ({ r, f, t: "private" })).catch(() => null)),
-          ...gBatch.map((g: any) => ob11Post("get_group_msg_history", { group_id: g.group_id, count: 1 }).then(r => ({ r, g, t: "group" })).catch(() => null)),
-        ]);
-        for (const item of results) {
-          if (!item) continue;
-          const msgs = item.r?.data?.messages || item.r?.data || [];
-          if (!Array.isArray(msgs) || msgs.length === 0) continue;
-          const last = msgs[msgs.length - 1];
-          const time = last.time || 0;
-          const name = item.t === "private" ? (item.f.remark || item.f.nickname) : item.g.group_name;
-          const id = item.t === "private" ? item.f.user_id : item.g.group_id;
-          conversations.push({ name, id, type: item.t, lastMsg: formatMsg(last).slice(0, 80), time, timeStr: time ? new Date(time * 1000).toLocaleString("zh-CN") : "" });
-        }
-        conversations.sort((a, b) => b.time - a.time);
-        const top = conversations.slice(0, 15);
-        const lines = top.map(c => `${c.type === "private" ? "👤" : "👥"} ${c.name} [${c.id}]\n   ${c.timeStr} | ${c.lastMsg}`);
-        ctx.ui.notify(`📬 最近会话:\n${lines.join("\n")}`, "info");
+        if (friends.length === 0) { ctx.ui.notify("没有好友", "info"); return; }
+
+        const results = await Promise.all(
+          friends.map((f: any) =>
+            ob11Post("get_friend_msg_history", { user_id: f.user_id, count: 1 })
+              .then((r: any) => {
+                const msgs = r?.data?.messages || r?.data || [];
+                if (!Array.isArray(msgs) || msgs.length === 0) return null;
+                const last = msgs[msgs.length - 1];
+                return {
+                  name: f.remark || f.nickname,
+                  id: f.user_id,
+                  lastMsg: formatMsg(last).slice(0, 60),
+                  time: last.time || 0,
+                  timeStr: last.time ? formatTime(last.time) : "",
+                };
+              })
+              .catch(() => null)
+          )
+        );
+
+        const sorted = results.filter(Boolean).sort((a: any, b: any) => b.time - a.time).slice(0, 20);
+        if (sorted.length === 0) { ctx.ui.notify("没有近期私聊消息", "info"); return; }
+
+        const lines = sorted.map((c: any) => `👤 ${c.name} [${c.id}]\n   ${c.timeStr} | ${c.lastMsg}`);
+        ctx.ui.notify(`📬 好友近期私聊 (${sorted.length}):\n${lines.join("\n")}`, "info");
       } catch (e: any) {
         ctx.ui.notify(`❌ ${e.message}`, "error");
       }
     },
   });
 
-  pi.registerCommand("qq-msg", {
-    description: "快速查看QQ消息 (用法: /qq-msg <好友名或群名>)",
-    handler: async (args: string, ctx: any) => {
-      if (!args) {
-        ctx.ui.notify("用法: /qq-msg <关键词> — 搜索好友/群并查看最近消息", "info");
-        return;
-      }
-      try {
-        const friendResult = await ob11Get("get_friend_list");
-        const friends = (friendResult.data || []).filter((f: any) =>
-          (f.nickname + f.remark + String(f.user_id)).toLowerCase().includes(args.toLowerCase())
-        );
-        if (friends.length > 0) {
-          const f = friends[0];
-          const msgResult = await ob11Post("get_friend_msg_history", {
-            user_id: f.user_id, count: 10,
-          });
-          const msgs = ((msgResult.data?.messages || msgResult.data) || []).map(formatMsg).join("\n");
-          ctx.ui.notify(`📩 ${f.nickname}(${f.user_id}) 的私聊:\n${msgs || "无消息"}`, "info");
-          return;
-        }
-        const groupResult = await ob11Get("get_group_list");
-        const groups = (groupResult.data || []).filter((g: any) =>
-          (g.group_name + String(g.group_id)).toLowerCase().includes(args.toLowerCase())
-        );
-        if (groups.length > 0) {
-          const g = groups[0];
-          const msgResult = await ob11Post("get_group_msg_history", {
-            group_id: g.group_id, count: 10,
-          });
-          const msgs = ((msgResult.data?.messages || msgResult.data) || []).map(formatMsg).join("\n");
-          ctx.ui.notify(`📩 [${g.group_name}](${g.group_id}) 的群聊:\n${msgs || "无消息"}`, "info");
-          return;
-        }
-        ctx.ui.notify(`未找到匹配"${args}"的好友或群`, "info");
-      } catch (e: any) {
-        ctx.ui.notify(`❌ ${e.message}`, "error");
-      }
-    },
-  });
-
-  pi.registerCommand("qq-friends", {
-    description: "查看QQ好友列表",
+  pi.registerCommand("qq-group", {
+    description: "查看QQ白名单群近期消息",
     handler: async (_args: string, ctx: any) => {
       try {
-        const result = await ob11Get("get_friend_list");
-        const friends = result.data || [];
-        ctx.ui.notify(`好友列表 (${friends.length}人):\n` + friends.map(formatFriend).join("\n"), "info");
-      } catch (e: any) {
-        ctx.ui.notify(`❌ ${e.message}`, "error");
-      }
-    },
-  });
+        if (GROUP_WHITELIST.size === 0) { ctx.ui.notify("未配置群白名单 (settings.json qq-msg.group_whitelist)", "info"); return; }
 
-  pi.registerCommand("qq-groups", {
-    description: "查看QQ群列表",
-    handler: async (_args: string, ctx: any) => {
-      try {
-        const result = await ob11Get("get_group_list");
-        const groups = result.data || [];
-        ctx.ui.notify(`群列表 (${groups.length}个):\n` + groups.map(formatGroup).join("\n"), "info");
-      } catch (e: any) {
-        ctx.ui.notify(`❌ ${e.message}`, "error");
-      }
-    },
-  });
-
-  pi.registerCommand("qq-send", {
-    description: "发送QQ消息 (用法: /qq-send <好友名或群名> <消息内容>)",
-    handler: async (args: string, ctx: any) => {
-      const parts = args.split(/\s+/);
-      if (parts.length < 2) {
-        ctx.ui.notify("用法: /qq-send <好友名/群名> <消息内容>", "info");
-        return;
-      }
-      const target = parts[0];
-      const message = parts.slice(1).join(" ");
-
-      try {
-        const friendResult = await ob11Get("get_friend_list");
-        const friends = (friendResult.data || []).filter((f: any) =>
-          (f.nickname + f.remark + String(f.user_id)).toLowerCase().includes(target.toLowerCase())
-        );
-        if (friends.length > 0) {
-          const f = friends[0];
-          const sendResult = await ob11Post("send_private_msg", {
-            user_id: f.user_id,
-            message,
-          });
-          ctx.ui.notify(`✅ 已发送给 ${f.nickname}(${f.user_id}), msg_id=${sendResult.data?.message_id}`, "info");
-          return;
-        }
         const groupResult = await ob11Get("get_group_list");
-        const groups = (groupResult.data || []).filter((g: any) =>
-          (g.group_name + String(g.group_id)).toLowerCase().includes(target.toLowerCase())
+        const groups = (groupResult.data || []).filter((g: any) => GROUP_WHITELIST.has(g.group_id));
+        if (groups.length === 0) { ctx.ui.notify("白名单内无匹配群", "info"); return; }
+
+        const results = await Promise.all(
+          groups.map((g: any) =>
+            ob11Post("get_group_msg_history", { group_id: g.group_id, count: 3 })
+              .then((r: any) => {
+                const msgs = r?.data?.messages || r?.data || [];
+                if (!Array.isArray(msgs) || msgs.length === 0) return null;
+                const last = msgs[msgs.length - 1];
+                return {
+                  name: g.group_name,
+                  id: g.group_id,
+                  msgs: msgs.map(formatMsg),
+                  time: last.time || 0,
+                };
+              })
+              .catch(() => null)
+          )
         );
-        if (groups.length > 0) {
-          const g = groups[0];
-          const sendResult = await ob11Post("send_group_msg", {
-            group_id: g.group_id,
-            message,
-          });
-          ctx.ui.notify(`✅ 已发送到 [${g.group_name}](${g.group_id}), msg_id=${sendResult.data?.message_id}`, "info");
-          return;
-        }
-        ctx.ui.notify(`未找到匹配"${target}"的好友或群`, "info");
+
+        const sorted = results.filter(Boolean).sort((a: any, b: any) => b.time - a.time);
+        if (sorted.length === 0) { ctx.ui.notify("白名单群无近期消息", "info"); return; }
+
+        const lines = sorted.map((c: any) => {
+          const msgLines = c.msgs.map((m: string) => "   " + m.slice(0, 80)).join("\n");
+          return `👥 ${c.name} [${c.id}]\n${msgLines}`;
+        });
+        ctx.ui.notify(`📬 白名单群消息 (${sorted.length}个群):\n${lines.join("\n\n")}`, "info");
       } catch (e: any) {
         ctx.ui.notify(`❌ ${e.message}`, "error");
       }
     },
   });
 
-  // ── Inject skill path ───────────────────────────────────────
   pi.on("resources_discover", async () => {
     return { skillPaths: [SKILL_DIR] };
   });
